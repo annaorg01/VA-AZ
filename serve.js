@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const INDEX_FILE = 'index.html';
 
 const server = http.createServer((req, res) => {
@@ -52,7 +52,12 @@ function serveFile(filePath, res) {
         '.jpg': 'image/jpeg',
         '.jpeg': 'image/jpeg',
         '.gif': 'image/gif',
-        '.svg': 'image/svg+xml'
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2',
+        '.ttf': 'font/ttf',
+        '.map': 'application/json'
     };
     
     const contentType = contentTypes[ext] || 'text/plain';
@@ -65,21 +70,39 @@ function serveFile(filePath, res) {
             return;
         }
         
-        res.writeHead(200, { 'Content-Type': contentType });
+        res.writeHead(200, { 
+            'Content-Type': contentType,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        });
         res.end(data);
     });
 }
 
 server.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-    console.log('Press Ctrl+C to stop the server');
+    console.log(`🚀 Server running at http://localhost:${PORT}`);
+    console.log('📁 Serving static files from:', __dirname);
+    console.log('⏹️  Press Ctrl+C to stop the server');
 });
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-    console.log('\nShutting down server...');
+    console.log('\n🛑 Shutting down server...');
     server.close(() => {
-        console.log('Server stopped');
+        console.log('✅ Server stopped');
         process.exit(0);
     });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+    console.error('❌ Uncaught Exception:', err.message);
+    console.error(err.stack);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+    process.exit(1);
 });

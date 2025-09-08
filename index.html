@@ -85,9 +85,7 @@
 
         <!-- Chat Messages -->
         <div id="chatMessages" class="space-y-4 mb-6 max-h-96 overflow-y-auto p-4 bg-white rounded-lg shadow-inner">
-            <div class="message-bot p-4 max-w-xs ml-auto">
-                <p>Hello! I'm here to help you with questions about VA benefits and sleep apnea. How can I assist you today?</p>
-            </div>
+            <!-- Welcome message will be added by JavaScript -->
         </div>
 
         <!-- Input Area -->
@@ -156,7 +154,7 @@
 
         // Initialize chat
         function initChat() {
-            // Add welcome message
+            // Add welcome message - only once
             addMessage("Hello! I'm here to help you with questions about VA benefits and sleep apnea. How can I assist you today?", 'bot');
         }
 

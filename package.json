@@ -1,0 +1,19 @@
+{
+  "name": "va-az-chatbot",
+  "version": "1.0.0",
+  "description": "Veterans Q&A Chatbot for VA benefits and sleep apnea support",
+  "main": "serve.js",
+  "scripts": {
+    "dev": "node serve.js",
+    "start": "node serve.js",
+    "build": "echo 'Build completed - static HTML project'",
+    "preview": "node serve.js"
+  },
+  "keywords": ["veterans", "chatbot", "va-benefits", "sleep-apnea"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "serve": "^14.2.1"
+  },
+  "devDependencies": {}
+}
