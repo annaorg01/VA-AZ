@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veterans Q&A Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .chat-container {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .message-user {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 18px 18px 4px 18px;
+        }
+        
+        .message-bot {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px 18px 18px 4px;
+        }
+        
+        .typing-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #667eea;
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-10px); opacity: 1; }
+        }
+        
+        .modal-backdrop {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-content {
+            animation: modalSlideIn 0.3s ease-out;
+        }
+        
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="chat-container w-full max-w-4xl mx-auto p-6">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Veterans Q&A Assistant</h1>
+            <p class="text-gray-600">Get answers about VA benefits and sleep apnea support</p>
+        </div>
+
+        <!-- Chat Messages -->
+        <div id="chatMessages" class="space-y-4 mb-6 max-h-96 overflow-y-auto p-4 bg-white rounded-lg shadow-inner">
+            <div class="message-bot p-4 max-w-xs ml-auto">
+                <p>Hello! I'm here to help you with questions about VA benefits and sleep apnea. How can I assist you today?</p>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="flex gap-2">
+            <input 
+                type="text" 
+                id="userInput" 
+                placeholder="Ask about VA benefits or sleep apnea..."
+                class="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onkeypress="handleKeyPress(event)"
+            >
+            <button 
+                onclick="sendMessage()" 
+                class="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-semibold"
+            >
+                Send
+            </button>
+            <button 
+                onclick="toggleTTS()" 
+                id="ttsToggle" 
+                class="px-4 py-3 bg-gray-200 text-gray-700 rounded-full hover:bg-gray-300 transition-all duration-200"
+                title="Toggle Text-to-Speech"
+            >
+                🔊
+            </button>
+        </div>
+
+        <!-- Lead Summary Modal -->
+        <div id="leadModal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+            <div class="modal-backdrop fixed inset-0" onclick="closeModal()"></div>
+            <div class="modal-content bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 z-10">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Lead Summary</h3>
+                <div id="leadSummary" class="text-gray-600 mb-6">
+                    <!-- Summary content will be inserted here -->
+                </div>
+                <div class="flex gap-3">
+                    <button 
+                        onclick="closeModal()" 
+                        class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                    >
+                        Close
+                    </button>
+                    <button 
+                        onclick="copySummary()" 
+                        class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        Copy Summary
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY'; // Replace with your actual API key
+        let ttsEnabled = true;
+        let chatHistory = [];
+
+        // DOM Elements
+        const chatMessages = document.getElementById('chatMessages');
+        const userInput = document.getElementById('userInput');
+        const ttsToggle = document.getElementById('ttsToggle');
+        const leadModal = document.getElementById('leadModal');
+        const leadSummary = document.getElementById('leadSummary');
+
+        // Initialize chat
+        function initChat() {
+            // Add welcome message
+            addMessage("Hello! I'm here to help you with questions about VA benefits and sleep apnea. How can I assist you today?", 'bot');
+        }
+
+        // Send message function
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // Add user message to chat
+            addMessage(message, 'user');
+            userInput.value = '';
+
+            // Show typing indicator
+            showTypingIndicator();
+
+            try {
+                // Get response from Gemini API
+                const response = await getGeminiResponse(message);
+                
+                // Remove typing indicator and add bot response
+                removeTypingIndicator();
+                addMessage(response, 'bot');
+                
+                // Add to chat history
+                chatHistory.push({ role: 'user', content: message });
+                chatHistory.push({ role: 'bot', content: response });
+
+                // Generate lead summary if conversation is substantial
+                if (chatHistory.length >= 4) {
+                    generateLeadSummary();
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                removeTypingIndicator();
+                addMessage("I'm having trouble connecting to the service. Please try again later.", 'bot');
+            }
+        }
+
+        // Handle Enter key press
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Add message to chat
+        function addMessage(text, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = sender === 'user' ? 
+                'message-user p-4 max-w-xs ml-auto' : 
+                'message-bot p-4 max-w-xs mr-auto';
+            
+            messageDiv.innerHTML = `<p>${text}</p>`;
+            chatMessages.appendChild(messageDiv);
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // Speak message if TTS is enabled and it's from bot
+            if (ttsEnabled && sender === 'bot') {
+                speakText(text);
+            }
+        }
+
+        // Show typing indicator
+        function showTypingIndicator() {
+            const typingDiv = document.createElement('div');
+            typingDiv.id = 'typingIndicator';
+            typingDiv.className = 'message-bot p-4 max-w-xs mr-auto';
+            typingDiv.innerHTML = `
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            `;
+            chatMessages.appendChild(typingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Remove typing indicator
+        function removeTypingIndicator() {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+
+        // Toggle TTS
+        function toggleTTS() {
+            ttsEnabled = !ttsEnabled;
+            ttsToggle.textContent = ttsEnabled ? '🔊' : '🔇';
+            ttsToggle.title = ttsEnabled ? 'Text-to-Speech Enabled' : 'Text-to-Speech Disabled';
+        }
+
+        // Text-to-Speech function
+        function speakText(text) {
+            if ('speechSynthesis' in window && ttsEnabled) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.9;
+                utterance.pitch = 1;
+                utterance.volume = 0.8;
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        // Get response from Gemini API
+        async function getGeminiResponse(message) {
+            if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY') {
+                throw new Error('Gemini API key not configured');
+            }
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+            
+            const requestBody = {
+                contents: [{
+                    parts: [{
+                        text: `You are a helpful assistant specializing in VA benefits and sleep apnea information for veterans. 
+                               Provide accurate, compassionate, and detailed responses. Focus on:
+                               - VA healthcare benefits
+                               - Sleep apnea diagnosis and treatment through VA
+                               - Disability compensation for sleep apnea
+                               - CPAP machine coverage
+                               - Support resources for veterans
+                               
+                               Current conversation context: ${JSON.stringify(chatHistory.slice(-6))}
+                               
+                               User question: ${message}
+                               
+                               Respond in a helpful, professional manner.`
+                    }]
+                }],
+                generationConfig: {
+                    temperature: 0.7,
+                    maxOutputTokens: 800,
+                    topP: 0.8
+                }
+            };
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        // Generate lead summary
+        async function generateLeadSummary() {
+            try {
+                const summary = await getLeadSummary();
+                showLeadSummary(summary);
+            } catch (error) {
+                console.error('Error generating lead summary:', error);
+            }
+        }
+
+        // Get lead summary from Gemini
+        async function getLeadSummary() {
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+            
+            const requestBody = {
+                contents: [{
+                    parts: [{
+                        text: `Create a concise lead summary from this conversation between a veteran and a VA benefits assistant. 
+                               Extract key information including:
+                               - Veteran's main concerns or questions
+                               - Potential benefits they may qualify for
+                               - Next steps or actions needed
+                               - Any specific issues mentioned (sleep apnea, disability, etc.)
+                               
+                               Conversation history: ${JSON.stringify(chatHistory)}
+                               
+                               Format the summary as a clear, professional note that could be used for follow-up.`
+                    }]
+                }],
+                generationConfig: {
+                    temperature: 0.5,
+                    maxOutputTokens: 500,
+                    topP: 0.9
+                }
+            };
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to generate summary');
+            }
+
+            const data = await response.json();
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        // Show lead summary modal
+        function showLeadSummary(summary) {
+            leadSummary.textContent = summary;
+            leadModal.classList.remove('hidden');
+        }
+
+        // Close modal
+        function closeModal() {
+            leadModal.classList.add('hidden');
+        }
+
+        // Copy summary to clipboard
+        function copySummary() {
+            navigator.clipboard.writeText(leadSummary.textContent)
+                .then(() => {
+                    alert('Summary copied to clipboard!');
+                })
+                .catch(err => {
+                    console.error('Failed to copy:', err);
+                });
+        }
+
+        // Initialize chat on load
+        document.addEventListener('DOMContentLoaded', initChat);
+    </script>
+</body>
+</html>
